@@ -1,0 +1,79 @@
+import os
+import requests
+import discord
+from discord.ext import commands
+
+intents = discord.Intents.default()
+bot = commands.Bot(command_prefix='/', intents=intents)
+DISCORD_API_KEY = 'APIkey'
+
+# Zendesk APIのURLとAPIキーを設定
+ZENDESK_API_KEY = 'APIkey'
+ZENDESK_ENDPOINT = 'https://domain.zendesk.com/api/v2/tickets.json'
+
+@bot.command()
+async def support(ctx):
+    await ctx.send('サポート申請を受け付けます。まず、メールアドレスを入力してください。')
+
+    def check(m):
+        return m.author == ctx.author and isinstance(m.content, str)
+
+    try:
+        email_message = await bot.wait_for('message', check=check, timeout=60)
+    except asyncio.TimeoutError:
+        await ctx.send('タイムアウトしました。もう一度お試しください。')
+        return
+
+    await ctx.send('ウォレットアドレスを入力してください。')
+
+    try:
+        wallet_address_message = await bot.wait_for('message', check=check, timeout=60)
+    except asyncio.TimeoutError:
+        await ctx.send('タイムアウトしました。もう一度お試しください。')
+        return
+
+    await ctx.send('お問い合わせ内容を入力してください。')
+
+    try:
+        content_message = await bot.wait_for('message', check=check, timeout=60)
+    except asyncio.TimeoutError:
+        await ctx.send('タイムアウトしました。もう一度お試しください。')
+        return
+
+    # Zendeskにチケットを作成
+    payload = {
+        'ticket': {
+            'requester': {
+                'email': email_message.content
+            },
+            'subject': '問い合わせ',
+            'comment': {
+                'body': content_message.content
+            },
+            'tags': ['discord'],
+            'custom_fields': [
+                {
+                    'id': 1234567,  # Discord User ID
+                    'value': str(ctx.author.id)
+                },
+                {
+                    'id': 0123456,  # Wallet Address
+                    'value': wallet_address_message.content
+                }
+            ]
+        }
+    }
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + ZENDESK_API_KEY
+    }
+    response = requests.post(ZENDESK_ENDPOINT, json=payload, headers=headers)
+    print(response.status_code)
+    print(response.text)
+
+    if response.status_code == 201:
+        await ctx.send('サポート申請が完了しました。返信をお待ちください。')
+    else:
+        await ctx.send('サポート申請の送信に失敗しました。もう一度お試しください。')
+
+bot.run(DISCORD_API_KEY)
