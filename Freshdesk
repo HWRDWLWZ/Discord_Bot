@@ -1,0 +1,66 @@
+import os
+import requests
+import discord
+from discord.ext import commands
+
+intents = discord.Intents.default()
+bot = commands.Bot(command_prefix='/', intents=intents)
+DISCORD_API_KEY = 'APIkey'
+
+# Freshdesk APIのURLとAPIキーを設定
+FD_API_KEY = 'APIkey'
+FD_ENDPOINT = 'https://domain.freshdesk.com/api/v2/tickets'
+
+@bot.command()
+async def support(ctx):
+    await ctx.send('サポート申請を受け付けます。まず、メールアドレスを入力してください。')
+
+    def check(m):
+        return m.author == ctx.author and isinstance(m.content, str)
+
+    try:
+        email_message = await bot.wait_for('message', check=check, timeout=60)
+    except asyncio.TimeoutError:
+        await ctx.send('タイムアウトしました。もう一度お試しください。')
+        return
+
+    await ctx.send('お問い合わせ内容を入力してください。')
+
+    try:
+        content_message = await bot.wait_for('message', check=check, timeout=60)
+    except asyncio.TimeoutError:
+        await ctx.send('タイムアウトしました。もう一度お試しください。')
+        return
+
+    await ctx.send('次に、ウォレットアドレスを入力してください。')
+
+    try:
+        wallet_address_message = await bot.wait_for('message', check=check, timeout=60)
+    except asyncio.TimeoutError:
+        await ctx.send('タイムアウトしました。もう一度お試しください。')
+        return
+
+    # Freshdeskにチケットを作成
+    payload = {
+        'status': 2,  # open status
+        'priority': 1,  # low priority
+        'source': 2,  # email
+        'subject': '問い合わせ',
+        'description': f"Email: {email_message.content}\nウォレットアドレス: {wallet_address_message.content}\n問い合わせ内容: {content_message.content}",
+        'email': email_message.content,
+        'custom_fields': {
+            'discord_user_id': str(ctx.author.id)
+        }
+    }
+    headers = {'Content-Type': 'application/json'}
+    response = requests.post(FD_ENDPOINT, auth=(FD_API_KEY, ''), json=payload, headers=headers)
+    print(response.status_code)
+    print(response.json())
+
+
+    if response.status_code == 201:
+        await ctx.send('サポート申請が完了しました。返信をお待ちください。')
+    else:
+        await ctx.send('サポート申請の送信に失敗しました。もう一度お試しください。')
+
+bot.run(DISCORD_API_KEY)
